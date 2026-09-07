@@ -83,14 +83,13 @@ def _b58decode(raw: str) -> bytes:
         if digit is None:
             raise DidError(f"bad did:key: {ch!r} is not base58btc")
         n = n * 58 + digit
-    # Leading '1's in base58btc encode leading 0x00 bytes — the integer
-    # conversion drops them (zero has no high bits), so they are prepended
-    # here.  Without this, a key whose raw bytes start with 0x00 decodes
-    # to fewer than 34 bytes and is rejected by the length check in
-    # public_key(), even though the DID is well-formed.
-    leading = len(raw) - len(raw.lstrip("1"))
-    payload = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
-    return b"\x00" * leading + payload
+    # Leading '1's are base58btc's spelling of leading 0x00 bytes, and the integer cannot
+    # carry them — zero has no high bits. So the width asked for below is one byte per
+    # leading '1' plus what `n` needs, and `to_bytes` big-endian supplies the zeros itself.
+    # Without this a key whose raw bytes start with 0x00 decodes to fewer than 34 bytes and
+    # `public_key` rejects a well-formed DID — roughly one Ed25519 key in 256. A width of
+    # zero is the empty input, which `to_bytes` already renders as b"".
+    return n.to_bytes(len(raw) - len(raw.lstrip("1")) + (n.bit_length() + 7) // 8, "big")
 
 
 def public_key(did: str) -> bytes:
